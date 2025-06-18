@@ -1,27 +1,23 @@
-# Этап сборки
 FROM golang:1.23.4-alpine AS builder
 
 WORKDIR /app
 
-# Установим зависимости
+RUN apk add --no-cache git gcc musl-dev
+
 COPY go.mod go.sum ./
+
 RUN go mod download
 
-# Копируем остальной код
-COPY . .
+COPY *.go ./
 
-# Сборка бинарника
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+RUN CGO_ENABLED=1 GOOS=linux go build -o /main .
 
-# Финальный образ
 FROM alpine:latest
 
-WORKDIR /app
+RUN apk add --no-cache libc6-compat
 
-# Копируем бинарник
-COPY --from=builder /app/main .
+COPY --from=builder /main /main
 
+COPY tracker.db /  
 
-COPY --from=builder /app/tracker.db .
-
-CMD ["./main"]
+CMD ["/main"]
