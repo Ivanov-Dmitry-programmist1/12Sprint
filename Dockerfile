@@ -1,23 +1,9 @@
-FROM golang:1.23.4-alpine AS builder
+FROM golang:1.23
 
 WORKDIR /app
 
-RUN apk add --no-cache git gcc musl-dev
+COPY . .
 
-COPY go.mod go.sum ./
+RUN go build -o parcel-tracker
 
-RUN go mod download
-
-COPY *.go ./
-
-RUN CGO_ENABLED=1 GOOS=linux go build -o /main .
-
-FROM alpine:latest
-
-RUN apk add --no-cache libc6-compat
-
-COPY --from=builder /main /main
-
-COPY tracker.db /  
-
-CMD ["/main"]
+CMD ["./parcel-tracker"]
