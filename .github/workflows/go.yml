@@ -1,53 +1,47 @@
 name: Golangci-lint
-
-on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*.*.*"  # Только релизные теги
-  pull_request:
-    branches:
-      - main
-
+on: 
+    push
 jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    test:
+        runs-on: ubuntu-latest
+        container: golang:1.23
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.23'
+            - name: Vet
+              run: go vet ./...
 
-      - name: Run tests
-        run: go test -v ./...
+            - name: Run Unit Tests
+              run: GOOS=linux GOARCH=amd64 go test
 
-  docker-publish:
-    needs: build-test
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')  # только если пушится тег
+    deploy:
+        name: Push Docker image to Docker Hub
+        runs-on: ubuntu-latest
+        needs: test
+        if: startsWith(github.ref, 'refs/tags')
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+            
+            - name: Set up Docker buildx
+              uses: docker/setup-buildx-action@v3
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+            - name: Log in Docker Hub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKER_USERNAME }}
+                password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+            - name: Extract metadata (tags, labels) for Docker
+              id: meta
+              uses: docker/metadata-action@v5.7.0
+              with:
+                images: sofuev/parcel_app
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/parcel-tracker:${{ github.ref_name }}
-            ${{ secrets.DOCKER_USERNAME }}/parcel-tracker:latest
+            - name: Build and push Docker Image
+              uses: docker/build-push-action@v6.17.0
+              with:
+                context: .
+                push: true
+                tags: ${{ steps.meta.outputs.tags }}
+                labels: ${{ steps.meta.outputs.labels }}
